@@ -3,7 +3,9 @@
     "allow": [
       "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/python -c \"import anthropic, voyageai, pypdf, pdfplumber, dotenv; print\\('deps ok'\\)\")",
       "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/pip list *)",
-      "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/pip install *)"
+      "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/pip install *)",
+      "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/python -m pytest /Users/connorott/PycharmProjects/rag/tests/ -q)",
+      "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/python -m pytest /Users/connorott/PycharmProjects/rag/tests/)"
     ]
   }
 }

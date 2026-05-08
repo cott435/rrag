@@ -621,6 +621,43 @@ def _block_is_boilerplate(block: _Block) -> bool:
     return section in _DROP_SECTIONS or subsection in _DROP_SECTIONS
 
 
+def chunk_paper_structured(
+    structured,  # research_rag.ingest.StructuredPdf
+    paper_id: str | None = None,
+    *,
+    target_words: int = DEFAULT_TARGET_WORDS,
+    max_words: int = DEFAULT_MAX_WORDS,
+    min_words: int = DEFAULT_MIN_WORDS,
+    overlap_words: int = DEFAULT_OVERLAP_WORDS,
+    drop_boilerplate: bool = True,
+    size_offset: float = 0.5,
+) -> list[Chunk]:
+    """Chunk from a font-aware StructuredPdf.
+
+    Renders the structured representation to text via to_markdown(),
+    which prefixes ``## `` onto every line the font analysis flagged as
+    a heading (larger size or bold variant of the body font). The
+    existing chunk_paper machinery then picks those markers up via its
+    markdown branch — far more reliable than re-running the text-only
+    heading heuristics on extracted PDF output, particularly for papers
+    where the body font and section heading font are identical except
+    for weight (e.g. LCS 2024 with URWPalladioL-Roma vs -Bold).
+
+    All other knobs (target_words, drop_boilerplate, etc.) are forwarded
+    to chunk_paper unchanged.
+    """
+    text = structured.to_markdown(size_offset=size_offset)
+    return chunk_paper(
+        text,
+        paper_id=paper_id,
+        target_words=target_words,
+        max_words=max_words,
+        min_words=min_words,
+        overlap_words=overlap_words,
+        drop_boilerplate=drop_boilerplate,
+    )
+
+
 def _flat_window_chunks(
     text: str,
     *,
