@@ -5,7 +5,10 @@
       "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/pip list *)",
       "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/pip install *)",
       "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/python -m pytest /Users/connorott/PycharmProjects/rag/tests/ -q)",
-      "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/python -m pytest /Users/connorott/PycharmProjects/rag/tests/)"
+      "Bash(/Users/connorott/PycharmProjects/rag/.venv/bin/python -m pytest /Users/connorott/PycharmProjects/rag/tests/)",
+      "Bash(python -c \"from src.research_rag import chunk_paper, parse_pdf, hash_pdf, Chunk, PaperIngestionError, tei_to_markdown; from src.research_rag.grobid_docker import GrobidDocker, GrobidVariant, GrobidError; print\\('imports ok'\\)\")",
+      "Bash(pip install *)",
+      "Bash(python -c ' *)"
     ]
   }
 }

@@ -44,18 +44,18 @@ class PaperCorpus:
 
     # ----- paper management -----
 
-    def discover(self, ocr: bool = False) -> list[Paper]:
+    def discover(self) -> list[Paper]:
         """Find all PDFs in papers_dir and register them as Paper objects."""
         found: list[Paper] = []
         pdfs = sorted(self.papers_dir.glob("*.pdf")) + sorted(
             self.papers_dir.glob("*.PDF")
         )
         for pdf in pdfs:
-            found.append(self.add_paper(pdf, ocr=ocr))
+            found.append(self.add_paper(pdf))
         return found
 
-    def add_paper(self, pdf_path: Path, ocr: bool = False) -> Paper:
-        paper = Paper(pdf_path, embedder=self.embedder, ocr=ocr)
+    def add_paper(self, pdf_path: Path) -> Paper:
+        paper = Paper(pdf_path, embedder=self.embedder)
         if paper.paper_id in self.papers:
             return self.papers[paper.paper_id]
         self.papers[paper.paper_id] = paper

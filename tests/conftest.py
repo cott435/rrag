@@ -69,7 +69,7 @@ def make_paper(fake_embedder):
         p.year = None
         p.summary_prompt_version = "v1"
         p._embedder = embedder if embedder is not None else fake_embedder
-        p._ocr = False
+        p._tei_xml = None
         p._text = text
         if chunks_data is not None:
             p._chunks = [

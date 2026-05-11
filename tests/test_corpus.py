@@ -1,7 +1,7 @@
 """Tests for PaperCorpus: two-tier search and the no-summary fallback path."""
 from __future__ import annotations
 
-from research_rag import ChunkResult, PaperCorpus, StructuredSummary
+from src.research_rag import ChunkResult, PaperCorpus, StructuredSummary
 
 
 def _summary(tldr, keywords):

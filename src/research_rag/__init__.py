@@ -1,26 +1,12 @@
 """research_rag — local RAG system for scientific papers."""
 
-from .chunking import (
-    Chunk,
-    chunk_by_section,
-    chunk_fixed_window,
-    chunk_paper,
-    chunk_paper_structured,
-)
+from .chunking import Chunk, chunk_paper
 from .conversation import Conversation
 from .corpus import ChunkResult, PaperCorpus
 from .embeddings import Embedder
 from .grader import GradeResult, Grader, GradingError
 from .indexes import BM25Index, Retriever, VectorIndex
-from .ingest import (
-    PaperIngestionError,
-    PdfLine,
-    StructuredPdf,
-    hash_pdf,
-    is_bold_font,
-    parse_pdf,
-    parse_pdf_structured,
-)
+from .ingest import PaperIngestionError, hash_pdf, parse_pdf, tei_to_markdown
 from .paper import Paper, StructuredSummary
 from .pipeline import (
     EvalDataset,
@@ -40,8 +26,6 @@ __all__ = [
     "ChunkResult",
     "Conversation",
     "Embedder",
-    "PdfLine",
-    "StructuredPdf",
     "EvalDataset",
     "EvalItem",
     "GradeResult",
@@ -62,14 +46,10 @@ __all__ = [
     "Summarizer",
     "Tool",
     "VectorIndex",
-    "chunk_by_section",
-    "chunk_fixed_window",
     "chunk_paper",
-    "chunk_paper_structured",
     "hash_pdf",
-    "is_bold_font",
     "parse_pdf",
-    "parse_pdf_structured",
+    "tei_to_markdown",
     "make_corpus_tools",
     "web_search_tool",
 ]

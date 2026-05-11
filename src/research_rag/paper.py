@@ -15,7 +15,7 @@ from .config import (
 )
 from .embeddings import Embedder
 from .indexes import BM25Index, Retriever, VectorIndex
-from .ingest import hash_pdf, parse_pdf
+from .ingest import hash_pdf, parse_pdf, tei_to_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,6 @@ class Paper:
         self,
         source_path: Path,
         embedder: Embedder | None = None,
-        ocr: bool = False,
         summary_prompt_version: str = "v1",
         title: str | None = None,
         authors: list[str] | None = None,
@@ -82,12 +81,26 @@ class Paper:
         self.summary_prompt_version = summary_prompt_version
 
         self._embedder = embedder
-        self._ocr = ocr
 
+        self._tei_xml: str | None = None
         self._text: str | None = None
         self._chunks: list[Chunk] | None = None
         self._summary: StructuredSummary | None = None
         self._chunk_index: Retriever | None = None
+
+    @property
+    def tei_xml(self) -> str:
+        if self._tei_xml is not None:
+            return self._tei_xml
+        cache_path = PARSED_CACHE / f"{self.paper_id}.tei.xml"
+        if cache_path.exists():
+            self._tei_xml = cache_path.read_text(encoding="utf-8")
+            return self._tei_xml
+        xml = parse_pdf(self.source_path)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(xml, encoding="utf-8")
+        self._tei_xml = xml
+        return self._tei_xml
 
     @property
     def text(self) -> str:
@@ -97,7 +110,7 @@ class Paper:
         if cache_path.exists():
             self._text = cache_path.read_text(encoding="utf-8")
             return self._text
-        text = parse_pdf(self.source_path, ocr=self._ocr)
+        text = tei_to_markdown(self.tei_xml)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(text, encoding="utf-8")
         self._text = text
@@ -107,7 +120,7 @@ class Paper:
     def chunks(self) -> list[Chunk]:
         if self._chunks is not None:
             return self._chunks
-        self._chunks = chunk_paper(self.text, paper_id=self.paper_id)
+        self._chunks = chunk_paper(self.tei_xml, paper_id=self.paper_id)
         return self._chunks
 
     def _summary_path(self, prompt_version: str | None = None) -> Path:
@@ -218,9 +231,11 @@ class Paper:
         not cleared here. To force re-embedding too, manually clear that dir.
         """
         (PARSED_CACHE / f"{self.paper_id}.md").unlink(missing_ok=True)
+        (PARSED_CACHE / f"{self.paper_id}.tei.xml").unlink(missing_ok=True)
         (BM25_CACHE / f"{self.paper_id}.pkl").unlink(missing_ok=True)
         for summary_file in SUMMARIES_CACHE.glob(f"{self.paper_id}.*.json"):
             summary_file.unlink(missing_ok=True)
+        self._tei_xml = None
         self._text = None
         self._chunks = None
         self._summary = None
