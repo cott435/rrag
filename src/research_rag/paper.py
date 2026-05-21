@@ -160,12 +160,13 @@ class Paper:
     def set_summary(
         self,
         summary: StructuredSummary,
+        model: str,
         prompt_version: str | None = None,
     ) -> None:
         v = prompt_version or self.summary_prompt_version
         cache_path = self._summary_path(v)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {**summary.to_dict(), "_prompt_version": v}
+        payload = {**summary.to_dict(), "_prompt_version": v, "_model": model}
         cache_path.write_text(json.dumps(payload, indent=2))
         if v == self.summary_prompt_version:
             self._summary = summary

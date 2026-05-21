@@ -6,12 +6,11 @@ import logging
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic
-
 from src.research_rag import (
     Conversation,
     Embedder,
     Grader,
+    LLMClient,
     PromptRegistry,
     make_corpus_tools,
     web_search_tool,
@@ -86,21 +85,21 @@ def main(argv: list[str] | None = None) -> int:
     corpus = PaperCorpus(embedder=embedder, papers_dir=args.papers_dir)
     corpus.discover()
 
-    client = Anthropic()
+    inference_llm = LLMClient(model=args.model)
+    grader_llm = LLMClient(model=args.grader_model)
     base_tools = make_corpus_tools(corpus)
     if not args.no_web_search:
         base_tools.append(web_search_tool())
 
     def runner_factory(prompt):
         return Conversation(
-            client=client,
+            llm=inference_llm,
             corpus=corpus,
-            model=args.model,
             system_prompt=prompt.system,
             tools=base_tools,
         )
 
-    grader = Grader(client=client, model=args.grader_model)
+    grader = Grader(llm=grader_llm)
 
     pipeline = PromptOptimizationPipeline(
         corpus=corpus,

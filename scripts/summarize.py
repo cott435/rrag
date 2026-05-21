@@ -7,14 +7,13 @@ import logging
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic
-
-from src.research_rag import Embedder, Paper
+from src.research_rag import Embedder, LLMClient, Paper
 from src.research_rag.config import (
     DEFAULT_BULK_MODEL,
     DEFAULT_INFERENCE_MODEL,
     PAPERS_DIR,
     ensure_dirs,
+    DEFAULT_LOCAL_MODEL
 )
 from src.research_rag.corpus import PaperCorpus
 from src.research_rag.summarizer import Summarizer
@@ -36,10 +35,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_INFERENCE_MODEL,
+        default=DEFAULT_LOCAL_MODEL,
         help=(
-            f"Anthropic model id (default: {DEFAULT_INFERENCE_MODEL}). "
-            f"Use {DEFAULT_BULK_MODEL} for cheap bulk runs."
+            f"Model id (default: {DEFAULT_LOCAL_MODEL}). "
+            f"Use {DEFAULT_BULK_MODEL} for cheap bulk runs, or a local id "
+            "(e.g. 'qwen3:1.7b') to route through Ollama."
         ),
     )
     parser.add_argument("--force", action="store_true", help="Bypass summary cache.")
@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  {p.paper_id}  {p.source_path.name}", file=sys.stderr)
             return 1
 
-    summarizer = Summarizer(client=Anthropic(), model=args.model)
+    summarizer = Summarizer(llm=LLMClient(model=args.model))
     print(f"Using prompt {summarizer.prompt.name}.{summarizer.prompt.version} | model={args.model}")
 
     failures = 0

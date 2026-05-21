@@ -6,9 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic
-
-from src.research_rag import Embedder, PromptTemplate
+from src.research_rag import Embedder, LLMClient, PromptTemplate
 from src.research_rag.config import (
     DEFAULT_INFERENCE_MODEL,
     PAPERS_DIR,
@@ -35,7 +33,16 @@ def main(argv: list[str] | None = None) -> int:
         "--model",
         type=str,
         default=DEFAULT_INFERENCE_MODEL,
-        help=f"Anthropic model (default: {DEFAULT_INFERENCE_MODEL}).",
+        help=(
+            f"Model id (default: {DEFAULT_INFERENCE_MODEL}). "
+            "Use a 'claude-*' id for Anthropic; anything else (e.g. 'qwen3:8b') "
+            "routes through local Ollama and disables tool use."
+        ),
+    )
+    parser.add_argument(
+        "--no-tools",
+        action="store_true",
+        help="Disable corpus tools entirely (required for non-Claude models).",
     )
     parser.add_argument("--papers-dir", type=Path, default=PAPERS_DIR)
     parser.add_argument(
@@ -83,26 +90,29 @@ def main(argv: list[str] | None = None) -> int:
     corpus = PaperCorpus(embedder=embedder, papers_dir=args.papers_dir)
     corpus.discover()
 
-    tools = make_corpus_tools(corpus)
-    if not args.no_web_search:
-        domains = (
-            [d.strip() for d in args.web_search_domains.split(",") if d.strip()]
-            if args.web_search_domains
-            else None
-        )
-        tools.append(
-            web_search_tool(
-                max_uses=args.web_search_max_uses,
-                allowed_domains=domains,
+    if args.no_tools:
+        tools = []
+    else:
+        tools = make_corpus_tools(corpus)
+        if not args.no_web_search:
+            domains = (
+                [d.strip() for d in args.web_search_domains.split(",") if d.strip()]
+                if args.web_search_domains
+                else None
             )
-        )
+            tools.append(
+                web_search_tool(
+                    max_uses=args.web_search_max_uses,
+                    allowed_domains=domains,
+                )
+            )
 
     on_tool_call = _print_tool_call if args.show_tool_calls else None
 
+    llm = LLMClient(model=args.model)
     conv = Conversation(
-        client=Anthropic(),
+        llm=llm,
         corpus=corpus,
-        model=args.model,
         system_prompt=prompt.system,
         tools=tools,
         conversation_id=args.resume,

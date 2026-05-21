@@ -5,10 +5,7 @@ import json
 import logging
 from dataclasses import dataclass
 
-from anthropic import Anthropic
-from anthropic.types import Message
-
-from .config import DEFAULT_GRADING_MODEL
+from .llm import LLMClient
 from .prompts import PromptRegistry, PromptTemplate
 
 logger = logging.getLogger(__name__)
@@ -57,25 +54,22 @@ class GradeResult:
 
 
 class Grader:
-    """LLM-as-judge grader. Calls Claude with a structured-output rubric prompt.
+    """LLM-as-judge grader using an :class:`LLMClient`.
 
     Temperature is pinned low (0.0) to reduce variance across runs.
     Use a different model from the one being graded when feasible to
-    reduce self-preference bias (the project default for both is
-    sonnet-4-5 — override `model` to break that tie when needed).
+    reduce self-preference bias.
     """
 
     def __init__(
         self,
-        client: Anthropic | None = None,
-        model: str = DEFAULT_GRADING_MODEL,
+        llm: LLMClient | None = None,
         prompt: PromptTemplate | None = None,
         max_tokens: int | None = None,
         registry: PromptRegistry | None = None,
         temperature: float = 0.0,
     ):
-        self._client = client or Anthropic()
-        self.model = model
+        self.llm = llm or LLMClient(model=_default_grading_model())
         self.prompt = prompt or (registry or PromptRegistry()).load("grading", "latest")
         self.max_tokens = max_tokens or int(self.prompt.metadata.get("max_tokens", 2000))
         self.temperature = temperature
@@ -109,19 +103,18 @@ class Grader:
 
     def _call_with_retry(self, system: str, user: str) -> GradeResult:
         messages: list[dict] = [{"role": "user", "content": user}]
-        response = self._client.messages.create(
-            model=self.model,
-            max_tokens=self.max_tokens,
-            system=system,
+        resp = self.llm.chat(
             messages=messages,
+            system=system,
+            tools=None,
+            max_tokens=self.max_tokens,
             temperature=self.temperature,
         )
-        text = _text_from_message(response)
         try:
-            return _parse_grade(text)
+            return _parse_grade(resp.text)
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             logger.warning("Grader JSON parse failed; retrying once. %s", e)
-            messages.append({"role": "assistant", "content": text})
+            messages.append({"role": "assistant", "content": resp.text})
             messages.append(
                 {
                     "role": "user",
@@ -132,27 +125,26 @@ class Grader:
                     ),
                 }
             )
-            response2 = self._client.messages.create(
-                model=self.model,
-                max_tokens=self.max_tokens,
-                system=system,
+            resp2 = self.llm.chat(
                 messages=messages,
+                system=system,
+                tools=None,
+                max_tokens=self.max_tokens,
                 temperature=self.temperature,
             )
-            text2 = _text_from_message(response2)
             try:
-                return _parse_grade(text2)
+                return _parse_grade(resp2.text)
             except (json.JSONDecodeError, KeyError, TypeError) as e2:
                 raise GradingError(
                     f"Grader returned invalid JSON twice. "
-                    f"Last response (truncated): {text2[:500]}"
+                    f"Last response (truncated): {resp2.text[:500]}"
                 ) from e2
 
 
-def _text_from_message(message: Message) -> str:
-    return "\n".join(
-        b.text for b in message.content if getattr(b, "type", None) == "text"
-    )
+def _default_grading_model() -> str:
+    from .config import DEFAULT_GRADING_MODEL
+
+    return DEFAULT_GRADING_MODEL
 
 
 def _parse_grade(text: str) -> GradeResult:

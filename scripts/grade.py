@@ -6,9 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from anthropic import Anthropic
-
-from src.research_rag import Grader
+from src.research_rag import Grader, LLMClient
 from src.research_rag.config import DEFAULT_GRADING_MODEL
 
 
@@ -33,7 +31,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--model", type=str, default=DEFAULT_GRADING_MODEL,
-        help=f"Anthropic model for grading (default: {DEFAULT_GRADING_MODEL}).",
+        help=(
+            f"Model id for grading (default: {DEFAULT_GRADING_MODEL}). "
+            "Non-Claude ids route through Ollama."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -58,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             context = args.context
 
-    grader = Grader(client=Anthropic(), model=args.model)
+    grader = Grader(llm=LLMClient(model=args.model))
     result = grader.grade(
         question=question,
         answer=answer,

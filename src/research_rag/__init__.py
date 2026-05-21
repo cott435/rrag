@@ -7,6 +7,7 @@ from .embeddings import Embedder
 from .grader import GradeResult, Grader, GradingError
 from .indexes import BM25Index, Retriever, VectorIndex
 from .ingest import PaperIngestionError, hash_pdf, parse_pdf, tei_to_markdown
+from .llm import LLMClient, LLMProvider, NormalizedResponse, ToolUse
 from .paper import Paper, StructuredSummary
 from .pipeline import (
     EvalDataset,
@@ -31,6 +32,9 @@ __all__ = [
     "GradeResult",
     "Grader",
     "GradingError",
+    "LLMClient",
+    "LLMProvider",
+    "NormalizedResponse",
     "Paper",
     "PaperCorpus",
     "PaperIngestionError",
@@ -45,6 +49,7 @@ __all__ = [
     "SummarizationError",
     "Summarizer",
     "Tool",
+    "ToolUse",
     "VectorIndex",
     "chunk_paper",
     "hash_pdf",

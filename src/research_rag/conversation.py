@@ -9,11 +9,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from anthropic import Anthropic
-from anthropic.types import Message
-
-from .config import CONVERSATIONS_DIR, DEFAULT_INFERENCE_MODEL
+from .config import CONVERSATIONS_DIR
 from .corpus import PaperCorpus
+from .llm import LLMClient
 from .tools import Tool
 
 logger = logging.getLogger(__name__)
@@ -22,20 +20,20 @@ logger = logging.getLogger(__name__)
 class Conversation:
     """Multi-turn chat session with a tool-use loop.
 
-    The loop terminates when the model returns stop_reason != "tool_use"
-    or when max_tool_iterations is reached. Local tool dispatch goes
-    through each Tool's handler; hosted tools (handler=None) are
-    executed server-side by Anthropic and pass through transparently.
+    The tool-use loop only runs on backends that support tools — currently
+    only the Anthropic path. Constructing a Conversation with a non-Anthropic
+    :class:`LLMClient` and non-empty ``tools`` raises ``ValueError``. Without
+    tools, both providers work; the loop simply terminates after one model
+    call since ``stop_reason`` won't be ``tool_use``.
 
-    Each user-facing turn is appended to the SQLite turns table, and
-    the full message log is snapshotted to conversation_state for resume.
+    Each user-facing turn is appended to the SQLite ``turns`` table, and
+    the full message log is snapshotted to ``conversation_state`` for resume.
     """
 
     def __init__(
         self,
-        client: Anthropic | None = None,
+        llm: LLMClient | None = None,
         corpus: PaperCorpus | None = None,
-        model: str = DEFAULT_INFERENCE_MODEL,
         system_prompt: str | None = None,
         tools: list[Tool] | None = None,
         conversation_id: str | None = None,
@@ -44,15 +42,19 @@ class Conversation:
         db_path: Path | None = None,
         on_tool_call: Callable[[str, dict, str], None] | None = None,
     ):
-        self._client = client or Anthropic()
+        self.llm = llm or LLMClient(model=_default_inference_model())
         self.corpus = corpus
-        self.model = model
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens
         self.max_tool_iterations = max_tool_iterations
         self.on_tool_call = on_tool_call
 
         self.tools: list[Tool] = list(tools or [])
+        if self.tools and not self.llm.supports_tools():
+            raise ValueError(
+                f"tools are not supported with provider={self.llm.provider.value} "
+                f"(model={self.llm.model!r}); use a Claude model for tool-use loops."
+            )
         self._tool_handlers: dict[str, Callable[..., Any]] = {
             t.name: t.handler for t in self.tools if t.handler is not None
         }
@@ -70,60 +72,55 @@ class Conversation:
 
     def ask(self, user_message: str) -> str:
         """Send a user message; run the tool loop; return final assistant text."""
-        _add_user_message(self.messages, user_message)
+        self.messages.append({"role": "user", "content": user_message})
 
-        response: Message | None = None
+        last_text = ""
         for _ in range(self.max_tool_iterations):
-            response = _chat(
-                self._client,
-                self.messages,
-                model=self.model,
-                max_tokens=self.max_tokens,
+            resp = self.llm.chat(
+                messages=self.messages,
                 system=self.system_prompt,
-                tools=self._tool_schemas,
+                tools=self._tool_schemas or None,
+                max_tokens=self.max_tokens,
             )
-            _add_assistant_message(self.messages, response)
+            self.messages.append({"role": "assistant", "content": resp.raw_assistant_content})
+            last_text = resp.text
 
-            if response.stop_reason != "tool_use":
-                text = _text_from_message(response)
-                self._persist_turn(user_message, text)
-                return text
+            if resp.stop_reason != "tool_use":
+                self._persist_turn(user_message, resp.text)
+                return resp.text
 
             tool_results: list[dict] = []
-            for block in response.content:
-                if getattr(block, "type", None) != "tool_use":
-                    continue
-                handler = self._tool_handlers.get(block.name)
+            for tu in resp.tool_uses:
+                handler = self._tool_handlers.get(tu.name)
                 if handler is None:
                     # Hosted tool — already executed server-side; nothing to dispatch.
                     continue
                 try:
-                    raw = handler(**dict(block.input))
+                    raw = handler(**tu.input)
                     result = raw if isinstance(raw, str) else str(raw)
                 except Exception as e:
-                    logger.exception("Tool %s raised", block.name)
-                    result = f"Tool {block.name} raised {type(e).__name__}: {e}"
+                    logger.exception("Tool %s raised", tu.name)
+                    result = f"Tool {tu.name} raised {type(e).__name__}: {e}"
                 if self.on_tool_call:
                     try:
-                        self.on_tool_call(block.name, dict(block.input), result)
+                        self.on_tool_call(tu.name, dict(tu.input), result)
                     except Exception:
                         logger.exception("on_tool_call hook raised")
                 tool_results.append(
                     {
                         "type": "tool_result",
-                        "tool_use_id": block.id,
+                        "tool_use_id": tu.id,
                         "content": result,
                     }
                 )
 
             if tool_results:
-                _add_user_message(self.messages, tool_results)
+                self.messages.append({"role": "user", "content": tool_results})
 
         # Hit the iteration cap — surface what we have plus a note.
-        text = _text_from_message(response) if response else ""
         note = "\n\n[max_tool_iterations reached without final response]"
-        self._persist_turn(user_message, text + note)
-        return text + note
+        self._persist_turn(user_message, last_text + note)
+        return last_text + note
 
     def _persist_turn(self, user_message: str, assistant_text: str) -> None:
         ts = _now()
@@ -166,45 +163,10 @@ class Conversation:
             )
 
 
-# Helpers — port of using_tools.ipynb pattern, kept private to this module.
+def _default_inference_model() -> str:
+    from .config import DEFAULT_INFERENCE_MODEL
 
-def _add_user_message(messages: list[dict], message: Any) -> None:
-    content = message.content if isinstance(message, Message) else message
-    messages.append({"role": "user", "content": content})
-
-
-def _add_assistant_message(messages: list[dict], message: Any) -> None:
-    content = message.content if isinstance(message, Message) else message
-    messages.append({"role": "assistant", "content": content})
-
-
-def _chat(
-    client: Anthropic,
-    messages: list[dict],
-    *,
-    model: str,
-    max_tokens: int,
-    system: str | None = None,
-    tools: list[dict] | None = None,
-    temperature: float = 1.0,
-) -> Message:
-    params: dict[str, Any] = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    if system:
-        params["system"] = system
-    if tools:
-        params["tools"] = tools
-    return client.messages.create(**params)
-
-
-def _text_from_message(message: Message) -> str:
-    return "\n".join(
-        b.text for b in message.content if getattr(b, "type", None) == "text"
-    )
+    return DEFAULT_INFERENCE_MODEL
 
 
 def _serialize_block(obj: Any) -> Any:

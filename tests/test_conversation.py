@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlite3
 from unittest.mock import MagicMock
 
-from research_rag import Conversation, Tool
+from research_rag import Conversation, LLMClient, Tool
 
 
 # ---- mock helpers ----
@@ -28,10 +28,10 @@ def msg(stop_reason, content_blocks):
     return m
 
 
-def make_client(scripted):
+def make_llm(scripted):
     it = iter(scripted)
-    c = MagicMock(); c.messages.create = lambda **kw: next(it)
-    return c
+    client = MagicMock(); client.messages.create = lambda **kw: next(it)
+    return LLMClient(model="claude-sonnet-4-5", client=client)
 
 
 def echo_tool(record):
@@ -64,7 +64,7 @@ def test_dispatches_local_tool_then_returns_text(tmp_path):
         msg("end_turn", [text_block("done")]),
     ]
     conv = Conversation(
-        client=make_client(scripted),
+        llm=make_llm(scripted),
         tools=[echo_tool(record)],
         db_path=tmp_path / "db.sqlite3",
     )
@@ -76,7 +76,7 @@ def test_dispatches_local_tool_then_returns_text(tmp_path):
 def test_persists_user_and_assistant_turn_to_sqlite(tmp_path):
     db = tmp_path / "db.sqlite3"
     conv = Conversation(
-        client=make_client([msg("end_turn", [text_block("hello back")])]),
+        llm=make_llm([msg("end_turn", [text_block("hello back")])]),
         tools=[],
         db_path=db,
     )
@@ -103,7 +103,7 @@ def test_tool_exception_is_caught_and_fed_back(tmp_path):
         msg("end_turn", [text_block("recovered")]),
     ]
     conv = Conversation(
-        client=make_client(scripted),
+        llm=make_llm(scripted),
         tools=[boom_tool],
         db_path=tmp_path / "db.sqlite3",
     )
@@ -117,7 +117,7 @@ def test_max_tool_iterations_cap_terminates_with_marker(tmp_path):
         for i in range(20)
     ]
     conv = Conversation(
-        client=make_client(scripted),
+        llm=make_llm(scripted),
         tools=[echo_tool(record)],
         db_path=tmp_path / "db.sqlite3",
         max_tool_iterations=3,
@@ -128,14 +128,14 @@ def test_max_tool_iterations_cap_terminates_with_marker(tmp_path):
 def test_resume_restores_messages_from_sqlite(tmp_path):
     db = tmp_path / "db.sqlite3"
     conv = Conversation(
-        client=make_client([msg("end_turn", [text_block("first answer")])]),
+        llm=make_llm([msg("end_turn", [text_block("first answer")])]),
         tools=[], db_path=db,
     )
     cid = conv.conversation_id
     conv.ask("hi")
     n1 = len(conv.messages)
     conv2 = Conversation(
-        client=make_client([msg("end_turn", [text_block("continued")])]),
+        llm=make_llm([msg("end_turn", [text_block("continued")])]),
         tools=[], db_path=db, conversation_id=cid,
     )
     assert len(conv2.messages) == n1
@@ -150,7 +150,7 @@ def test_on_tool_call_hook_receives_name_inputs_result(tmp_path):
         msg("end_turn", [text_block("done")]),
     ]
     conv = Conversation(
-        client=make_client(scripted),
+        llm=make_llm(scripted),
         tools=[echo_tool(record)],
         db_path=tmp_path / "db.sqlite3",
         on_tool_call=lambda n, i, r: captured.append((n, i, r)),
@@ -166,7 +166,7 @@ def test_hosted_tool_with_no_handler_is_ignored_locally(tmp_path):
     hosted = Tool(name="web_search", schema={"type": "web_search_20250305", "name": "web_search"}, handler=None)
     scripted = [msg("end_turn", [text_block("hi")])]
     conv = Conversation(
-        client=make_client(scripted),
+        llm=make_llm(scripted),
         tools=[hosted],
         db_path=tmp_path / "db.sqlite3",
     )
