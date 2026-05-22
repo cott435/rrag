@@ -35,9 +35,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_LOCAL_MODEL,
+        default=DEFAULT_INFERENCE_MODEL,
         help=(
-            f"Model id (default: {DEFAULT_LOCAL_MODEL}). "
+            f"Model id (default: {DEFAULT_INFERENCE_MODEL}). "
             f"Use {DEFAULT_BULK_MODEL} for cheap bulk runs, or a local id "
             "(e.g. 'qwen3:1.7b') to route through Ollama."
         ),

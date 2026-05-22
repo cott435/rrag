@@ -79,3 +79,55 @@ def test_summarizer_strips_code_fences(isolated_paper_cache, make_paper):
     fenced = "```json\n" + json.dumps(CANNED) + "\n```"
     r = Summarizer(llm=make_llm([fenced])).summarize(p)
     assert r.tldr == "TLDR."
+
+
+def make_ollama_llm(text_responses):
+    """LLMClient routed to Ollama with a scripted mock ollama-like client."""
+    it = iter(text_responses)
+
+    def chat(**kw):
+        return {"message": {"content": next(it)}}
+
+    fake_ollama = MagicMock(); fake_ollama.chat = chat
+    return LLMClient(model="qwen3:4b", client=fake_ollama)
+
+
+def test_summarizer_falls_back_to_chained_for_local_model(
+    isolated_paper_cache, make_paper
+):
+    """On JSON parse failure with a local model, run the per-field chained path."""
+    p = make_paper("e", "paper body goes here")
+    # First response: weak model emits markdown prose instead of JSON.
+    # Then one response per field, in the order defined by _FIELD_INSTRUCTIONS.
+    per_field_responses = [
+        "A one-line tldr.",          # tldr
+        "The problem statement.",     # problem
+        "The method description.",    # method
+        "The key results.",           # key_results
+        "Not explicitly discussed.",  # limitations
+        "- First contribution\n- Second contribution",       # contributions (list)
+        "keyword one\nkeyword two\nkeyword three\nkw four",  # keywords (list)
+    ]
+    initial_garbage = "# A nice markdown summary\n\nThis paper is great..."
+    llm = make_ollama_llm([initial_garbage, *per_field_responses])
+    r = Summarizer(llm=llm).summarize(p)
+    assert r.tldr == "A one-line tldr."
+    assert r.limitations == "Not explicitly discussed."
+    assert r.contributions == ["First contribution", "Second contribution"]
+    assert r.keywords == ["keyword one", "keyword two", "keyword three", "kw four"]
+
+
+def test_summarizer_chain_list_parses_numbered_and_bullet_styles(
+    isolated_paper_cache, make_paper
+):
+    p = make_paper("f", "paper body")
+    # weak first attempt, then per-field text. Use mixed bullet styles for lists.
+    per_field_responses = [
+        "tldr.", "problem.", "method.", "results.", "limits.",
+        "1. one\n2) two\n* three\n• four\nfive",  # contributions
+        "alpha\nbeta\ngamma\ndelta",              # keywords
+    ]
+    llm = make_ollama_llm(["not json at all", *per_field_responses])
+    r = Summarizer(llm=llm).summarize(p)
+    assert r.contributions == ["one", "two", "three", "four", "five"]
+    assert r.keywords == ["alpha", "beta", "gamma", "delta"]

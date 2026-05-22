@@ -33,9 +33,7 @@ corpus.discover()
 tools = make_corpus_tools(corpus)
 
 conv = Conversation(
-    client=Anthropic(),
     corpus=corpus,
-    model=DEFAULT_INFERENCE_MODEL,
     system_prompt=prompt.system,
     tools=tools,
 )
@@ -43,5 +41,5 @@ conv = Conversation(
 handler = conv._tool_handlers.get('retrieve_from_papers')
 raw = handler('DCP des-gamma-carboxyprothrombin peptide epitope antibody ELISA HCC hepatocellular carcinoma')
 
-raw = handler('dcp')
+raw2 = handler('dcp')
 

@@ -31,8 +31,8 @@ class GrobidVariant(str, Enum):
 
 
 # Pinned tags for reproducibility. lfoppiano/grobid is the canonical image.
-IMAGE_CRF = "lfoppiano/grobid:0.8.1-crf"
-IMAGE_FULL = "lfoppiano/grobid:0.8.1"
+IMAGE_CRF = "grobid/grobid:0.9.0-crf"
+IMAGE_FULL = "grobid/grobid:0.9.0"
 
 
 class GrobidError(Exception):

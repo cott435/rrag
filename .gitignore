@@ -12,6 +12,7 @@ dist/
 # Virtualenv
 .venv/
 venv/
+web-search-mcp/
 
 # Env / secrets
 .env
