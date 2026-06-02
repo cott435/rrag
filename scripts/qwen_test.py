@@ -16,8 +16,8 @@ from mcp.client.stdio import stdio_client
 # --- Config ---------------------------------------------------------------
 
 MCP_SERVER_PATH = "/Users/connorott/PycharmProjects/rag/web-search-mcp/dist/index.js"
-OLLAMA_MODEL = "qwen3:4b"
-MAX_TURNS = 10  # hard cap on tool-call rounds per user query
+OLLAMA_MODEL = "qwen3:14b"
+MAX_TURNS = 10
 
 SYSTEM_PROMPT = """You are a helpful research assistant with access to web search tools.
 

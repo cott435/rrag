@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--model",
         type=str,
-        default=DEFAULT_INFERENCE_MODEL,
+        default=DEFAULT_LOCAL_MODEL,
         help=(
             f"Model id (default: {DEFAULT_INFERENCE_MODEL}). "
             f"Use {DEFAULT_BULK_MODEL} for cheap bulk runs, or a local id "

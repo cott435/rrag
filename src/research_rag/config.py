@@ -28,7 +28,7 @@ DEFAULT_INFERENCE_MODEL = "claude-sonnet-4-5"
 DEFAULT_BULK_MODEL = "claude-haiku-4-5"
 DEFAULT_GRADING_MODEL = "claude-sonnet-4-5"
 DEFAULT_EMBEDDING_MODEL = "voyage-4-large"
-DEFAULT_LOCAL_MODEL = "qwen3:4b"
+DEFAULT_LOCAL_MODEL = "qwen3:14b"
 
 # API keys (read after load_dotenv)
 ANTHROPIC_API_KEY: str | None = os.getenv("ANTHROPIC_API_KEY")
